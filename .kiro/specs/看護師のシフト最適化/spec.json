@@ -1,0 +1,22 @@
+{
+  "feature_name": "看護師のシフト最適化",
+  "created_at": "2026-02-06T20:11:58Z",
+  "updated_at": "2026-02-06T21:25:05Z",
+  "language": "ja",
+  "phase": "implementation-completed",
+  "approvals": {
+    "requirements": {
+      "generated": true,
+      "approved": true
+    },
+    "design": {
+      "generated": true,
+      "approved": true
+    },
+    "tasks": {
+      "generated": true,
+      "approved": true
+    }
+  },
+  "ready_for_implementation": true
+}
