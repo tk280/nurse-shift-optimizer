@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+from .model.variables import build_assignment_vars
 import csv
 import math
 import random
@@ -18,6 +18,15 @@ from .schemas import (
     Policy,
     ProblemDefinition,
     TspNode,
+)
+
+from .constraints.hard.all_hard import add_one_shift_per_nurse_per_day
+add_one_shift_per_nurse_per_day(
+    solver=solver,
+    assignment_vars=assignment_vars,
+    nurses=nurses,
+    dates=dates,
+    shift_types=shift_types,
 )
 
 
@@ -380,12 +389,12 @@ def _solve_nurse_shift(problem: ProblemDefinition, policy: Policy) -> Dict[str, 
     shift_type_meta = input_data["shift_type_meta"]
     week_groups = _group_dates_by_week(dates)
 
-    assignment_vars: Dict[Tuple[str, str, str], pywraplp.Variable] = {}
-    for nurse in nurses:
-        for day in dates:
-            for shift_type in shift_types:
-                key = (nurse["id"], day.isoformat(), shift_type)
-                assignment_vars[key] = solver.IntVar(0, 1, f"x_{nurse['id']}_{day}_{shift_type}")
+    assignment_vars = build_assignment_vars(
+        solver=solver,
+        nurses=nurses,
+        dates=dates,
+        shift_types=shift_types,
+    )
 
     # One shift per nurse per day
     for nurse in nurses:

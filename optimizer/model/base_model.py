@@ -1,16 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Tuple
+from typing import Dict, Tuple
+from ortools.linear_solver import pywraplp
 
 
 @dataclass
 class Vars:
-    """
-    Decision variables container.
-    For now it's empty; we'll add x[n,d,s] etc. later.
-    """
-    pass
+    assignment_vars: Dict[Tuple[str, str, str], pywraplp.Variable]
 
 
 def build_model(data: Any, policy: Any) -> Tuple[Any, Vars]:
