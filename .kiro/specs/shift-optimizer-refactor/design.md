@@ -44,6 +44,8 @@ optimizer/
 - 日付・シフト種別・看護師のインデックス管理
 - 割当変数と共通補助変数の生成
 - モデルの参照用データクラスの提供
+  - API: `build_model(data, policy) -> (model, vars)`
+  - `vars` は named structure（例: `x[n,d,s]`）を保持
 
 ### optimizer/constraints/hard
 - 需要充足、夜勤条件、病棟/支援要員などの必須制約
@@ -54,10 +56,14 @@ optimizer/
 - 希望休/希望シフトの違反ペナルティ
 - 公平性（夜勤/週末/祝日）ペナルティ
 - 新人同席/急な遷移抑制などのペナルティ
+  - API: `add_hard_constraints(model, vars, data, policy) -> None`
+  - API: `add_soft_constraints(model, vars, data, policy) -> list[PenaltyTerm]`
+  - `PenaltyTerm` は `(name, weight, expr or var)` を持つ
 
 ### optimizer/objectives
 - 各ソフト制約のペナルティ変数を統合
 - 目的関数の重み適用
+  - API: `build_objective(model, penalty_terms) -> None`（Minimize）
 
 ### optimizer/shift_model.py
 - 入力正規化
@@ -69,6 +75,7 @@ optimizer/
 - `constraints` は `model` に依存してよい
 - `model` は `constraints` を参照しない
 - `objectives` は `constraints` から得たペナルティ変数を受け取る
+- `solve`/オーケストレーションは model と constraints を呼ぶのみ
 
 ## 互換性戦略
 - 既存 `solve_problem` のシグネチャ維持
@@ -79,4 +86,3 @@ optimizer/
 ## テスト
 - 既存 `tests/test_shift_model.py` を維持
 - 追加でリファクタ互換性テストを用意（必要に応じて）
-
