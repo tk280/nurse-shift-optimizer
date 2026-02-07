@@ -6,6 +6,7 @@ from .availability import add_availability_constraints
 from .demand import add_demand_constraints
 from .patterns import add_work_pattern_constraints
 from .limits import add_limits_constraints
+from .night_rules import add_night_rules_constraints
 
 
 def add_hard_constraints(model: Any, vars_: Any, data: Any, policy: Any) -> None:
@@ -50,6 +51,15 @@ def add_hard_constraints(model: Any, vars_: Any, data: Any, policy: Any) -> None
         dates=data["dates"],
         shift_types=data["shift_types"],
         shift_type_meta=data["shift_type_meta"],
+        rules=data["rules"],
+    )
+    
+    add_night_rules_constraints(
+        solver=model,
+        assignment_vars=vars_.assignment_vars,
+        nurses=data["nurses"],
+        demands=data["demands"],
+        shift_types=data["shift_types"],
         rules=data["rules"],
     )
 

@@ -429,39 +429,6 @@ def _solve_nurse_shift(problem: ProblemDefinition, policy: Policy) -> Dict[str, 
                 <= max(0, len(week_dates) - min_rest_days_per_week)
             )
 
-    # Night shift must include at least one registered nurse.
-    if night_shift_type in shift_types:
-        for demand in demands:
-            if demand["shift_type"] != night_shift_type:
-                continue
-            day = demand["date"]
-            solver.Add(
-                sum(
-                    assignment_vars[(nurse["id"], day, night_shift_type)]
-                    for nurse in nurses
-                    if nurse.get("registered", True)
-                )
-                >= 1
-            )
-            # Novice cannot be sole member on night shift.
-            required_count = int(demand["required_count"])
-            if required_count == 1:
-                for nurse in nurses:
-                    if nurse.get("novice", False):
-                        solver.Add(assignment_vars[(nurse["id"], day, night_shift_type)] == 0)
-            else:
-                for nurse in nurses:
-                    if not nurse.get("novice", False):
-                        continue
-                    solver.Add(
-                        assignment_vars[(nurse["id"], day, night_shift_type)]
-                        <= sum(
-                            assignment_vars[(peer["id"], day, night_shift_type)]
-                            for peer in nurses
-                            if peer["id"] != nurse["id"]
-                        )
-                    )
-
     # Objective: soft constraints
     objective_terms = []
 
