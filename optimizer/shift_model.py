@@ -381,7 +381,6 @@ def _solve_nurse_shift(problem: ProblemDefinition, policy: Policy) -> Dict[str, 
     rules = input_data["rules"]
     weights = input_data["weights"]
     shift_type_meta = input_data["shift_type_meta"]
-    week_groups = _group_dates_by_week(dates)
 
     assignment_vars = build_assignment_vars(
         solver=solver,
@@ -399,35 +398,6 @@ def _solve_nurse_shift(problem: ProblemDefinition, policy: Policy) -> Dict[str, 
         data=input_data,
         policy=policy,
     )
-
-    # Max shifts per nurse (applied per calendar week: Monday-Sunday)
-    for nurse in nurses:
-        max_shifts = nurse.get("max_shifts", rules.get("max_shifts_per_nurse"))
-        if max_shifts is not None:
-            for week_dates in week_groups.values():
-                solver.Add(
-                    sum(
-                        assignment_vars[(nurse["id"], day.isoformat(), shift_type)]
-                        for day in week_dates
-                        for shift_type in shift_types
-                    )
-                    <= max_shifts
-                )
-
-    # Weekly rest-day guarantee.
-    min_rest_days_per_week = int(rules.get("min_rest_days_per_week", 1))
-    for nurse in nurses:
-        for week_dates in week_groups.values():
-            if len(week_dates) < 7:
-                continue
-            solver.Add(
-                sum(
-                    assignment_vars[(nurse["id"], day.isoformat(), shift_type)]
-                    for day in week_dates
-                    for shift_type in shift_types
-                )
-                <= max(0, len(week_dates) - min_rest_days_per_week)
-            )
 
     objective_terms = build_objective_terms(
         solver=solver,
