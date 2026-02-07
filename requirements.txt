@@ -1,5 +1,0 @@
-ortools
-streamlit
-pandas
-PyYAML
-pytest

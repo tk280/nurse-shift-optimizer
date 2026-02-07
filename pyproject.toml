@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "nurse-shift-optimizer"
+version = "0.1.0"
+description = "看護師シフト最適化 (OR-Tools + Streamlit)"
+authors = ["tk280"]
+readme = "README.md"
+package-mode = false
+
+[tool.poetry.dependencies]
+python = ">=3.9,<3.13"
+ortools = "*"
+streamlit = "*"
+pandas = "*"
+pyyaml = "*"
+altair = ">=4,<5"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "*"
+
+[build-system]
+requires = ["poetry-core>=1.8.0"]
+build-backend = "poetry.core.masonry.api"

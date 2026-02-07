@@ -46,6 +46,60 @@ SHIFT_CLASS = {
 }
 
 
+def _toggle(label: str, *, value: bool, key: str, help: str) -> bool:
+    """Compatibility wrapper for older Streamlit versions without st.toggle."""
+    if hasattr(st, "toggle"):
+        return bool(st.toggle(label, value=value, key=key, help=help))
+    return bool(st.checkbox(label, value=value, key=key, help=help))
+
+
+class _CompatStatus:
+    def __init__(self, label: str, state: str) -> None:
+        self._placeholder = st.empty()
+        self.update(label=label, state=state)
+
+    def update(self, *, state: str | None = None, label: str | None = None) -> None:
+        state_text = f"[{state}]" if state else ""
+        label_text = label or ""
+        self._placeholder.info(f"{state_text} {label_text}".strip())
+
+
+def _status(label: str, *, state: str = "running") -> Any:
+    if hasattr(st, "status"):
+        return st.status(label, state=state)
+    return _CompatStatus(label=label, state=state)
+
+
+def _rerun() -> None:
+    if hasattr(st, "rerun"):
+        st.rerun()
+        return
+    if hasattr(st, "experimental_rerun"):
+        st.experimental_rerun()
+
+
+def _data_editor(data: Any, **kwargs: Any) -> Any:
+    if hasattr(st, "data_editor"):
+        return st.data_editor(data, **kwargs)
+    if hasattr(st, "experimental_data_editor"):
+        try:
+            return st.experimental_data_editor(data, **kwargs)
+        except TypeError:
+            fallback_kwargs = dict(kwargs)
+            fallback_kwargs.pop("column_config", None)
+            return st.experimental_data_editor(data, **fallback_kwargs)
+    st.warning("このStreamlitバージョンは編集UIに非対応のため、表を閲覧表示します。")
+    _dataframe(data, use_container_width=bool(kwargs.get("use_container_width", True)))
+    return data
+
+
+def _dataframe(data: Any, *, use_container_width: bool = True) -> None:
+    try:
+        st.dataframe(data, use_container_width=use_container_width)
+    except TypeError:
+        st.dataframe(data)
+
+
 def _build_dates(start: date, days: int) -> List[str]:
     return [(start + timedelta(days=i)).isoformat() for i in range(days)]
 
@@ -813,13 +867,13 @@ def main() -> None:
         rest_after_night = st.number_input(
             "夜勤後休日日数", min_value=0, max_value=3, value=1, key="ui_rest_after_night"
         )
-        enforce_exact_demand = st.toggle(
+        enforce_exact_demand = _toggle(
             "必要人数を厳密一致",
             value=True,
             key="ui_enforce_exact_demand",
             help="ONにすると必要人数ぴったりで割り当てます。OFFにすると必要人数以上でも許容します。",
         )
-        enforce_required_skills_hard = st.toggle(
+        enforce_required_skills_hard = _toggle(
             "必要スキル制約をHard適用",
             value=True,
             key="ui_enforce_required_skills_hard",
@@ -957,17 +1011,18 @@ def main() -> None:
     with action_col1:
         if st.button("テンプレートを再生成"):
             _reset_template(start_date, int(days))
-            st.rerun()
+            _rerun()
     with action_col2:
         st.caption("テンプレートは仮名10名、希望休、日勤2・遅番1・夜勤1、夜勤ICU必須です。")
 
     with st.expander("1. 看護師設定", expanded=True):
         st.caption("氏名、ICU対応可否、最大勤務回数、希望休を調整します。")
-        nurses_editor = st.data_editor(
-            st.session_state.nurses_editor,
-            num_rows="dynamic",
-            use_container_width=True,
-            column_config={
+        nurses_editor_kwargs: Dict[str, Any] = {
+            "num_rows": "dynamic",
+            "use_container_width": True,
+        }
+        if hasattr(st, "column_config"):
+            nurses_editor_kwargs["column_config"] = {
                 "氏名": st.column_config.TextColumn(required=True),
                 "ICU": st.column_config.CheckboxColumn(help="夜勤ICU必須シフトの候補になります"),
                 "最大勤務回数": st.column_config.NumberColumn(min_value=1, max_value=7, step=1),
@@ -987,16 +1042,17 @@ def main() -> None:
                 "希望シフト(JSON)": st.column_config.TextColumn(
                     help='例: {"2026-02-10":["day","evening"]}'
                 ),
-            },
-        )
+            }
+        nurses_editor = _data_editor(st.session_state.nurses_editor, **nurses_editor_kwargs)
 
     with st.expander("2. 日別必要人数", expanded=True):
         st.caption("日勤・遅番・夜勤それぞれの必要人数を日ごとに設定します。")
-        demands_editor = st.data_editor(
-            st.session_state.demands_editor,
-            num_rows="dynamic",
-            use_container_width=True,
-            column_config={
+        demands_editor_kwargs: Dict[str, Any] = {
+            "num_rows": "dynamic",
+            "use_container_width": True,
+        }
+        if hasattr(st, "column_config"):
+            demands_editor_kwargs["column_config"] = {
                 "日付": st.column_config.TextColumn(required=True),
                 "日勤必要人数": st.column_config.NumberColumn(min_value=0, step=1),
                 "遅番必要人数": st.column_config.NumberColumn(min_value=0, step=1),
@@ -1006,8 +1062,8 @@ def main() -> None:
                 "リーダー必要": st.column_config.CheckboxColumn(),
                 "支援シフト": st.column_config.CheckboxColumn(),
                 "祝日": st.column_config.CheckboxColumn(),
-            },
-        )
+            }
+        demands_editor = _data_editor(st.session_state.demands_editor, **demands_editor_kwargs)
 
     with st.expander("3. 実行前チェック", expanded=False):
         st.caption("左サイドバーの実行設定（公平性重み、希望休ペナルティ、時間上限など）を確認してください。")
@@ -1023,7 +1079,7 @@ def main() -> None:
         return
 
     progress = st.progress(0)
-    status_box = st.status("入力を整形中", state="running")
+    status_box = _status("入力を整形中", state="running")
 
     try:
         nurses = _parse_nurses(nurses_editor)
@@ -1096,7 +1152,7 @@ def main() -> None:
         issues = result.get("errors", [])
         if issues:
             st.error("入力値に問題があります。以下を修正してください。")
-            st.dataframe(issues, use_container_width=True)
+            _dataframe(issues, use_container_width=True)
         else:
             st.error("入力エラーが発生しました。")
         st.stop()
@@ -1121,7 +1177,7 @@ def main() -> None:
                     }
                 )
             st.subheader("実行不能の分析結果")
-            st.dataframe(rows, use_container_width=True)
+            _dataframe(rows, use_container_width=True)
             st.info("下のボタンで推奨パラメータを自動反映できます。")
             nurse_count = len(nurses)
             for idx, item in enumerate(analysis, start=1):
@@ -1137,7 +1193,7 @@ def main() -> None:
                 if st.button(f"{idx}. {button_label}", key=f"apply_infeasible_fix_{idx}"):
                     message = _apply_infeasible_recommendation(code, item, nurse_count)
                     st.session_state["auto_fix_message"] = message
-                    st.rerun()
+                    _rerun()
             if st.session_state.get("auto_fix_message"):
                 st.success(st.session_state["auto_fix_message"])
         st.stop()
@@ -1158,32 +1214,33 @@ def main() -> None:
     for item in result.get("assignments", []):
         counts[item["nurse_id"]] = counts.get(item["nurse_id"], 0) + 1
     chart_rows = [{"看護師": name, "勤務回数": count} for name, count in counts.items()]
-    st.dataframe(chart_rows, use_container_width=True)
+    _dataframe(chart_rows, use_container_width=True)
 
     st.subheader("手動調整")
     st.caption("各セルを直接編集できます（休み/日勤/遅番/夜勤）。")
     matrix_rows = _build_assignment_matrix(calendar, nurses, dates)
-    column_config: Dict[str, Any] = {
-        "日付": st.column_config.TextColumn(disabled=True),
-        "曜日": st.column_config.TextColumn(disabled=True),
+    matrix_editor_kwargs: Dict[str, Any] = {
+        "num_rows": "fixed",
+        "use_container_width": True,
+        "key": "manual_matrix_editor",
     }
-    for nurse in nurses:
-        column_config[nurse["id"]] = st.column_config.SelectboxColumn(
-            options=["休み", "日勤", "遅番", "夜勤"],
-            required=True,
-        )
+    if hasattr(st, "column_config"):
+        column_config: Dict[str, Any] = {
+            "日付": st.column_config.TextColumn(disabled=True),
+            "曜日": st.column_config.TextColumn(disabled=True),
+        }
+        for nurse in nurses:
+            column_config[nurse["id"]] = st.column_config.SelectboxColumn(
+                options=["休み", "日勤", "遅番", "夜勤"],
+                required=True,
+            )
+        matrix_editor_kwargs["column_config"] = column_config
 
-    edited_matrix = st.data_editor(
-        matrix_rows,
-        column_config=column_config,
-        num_rows="fixed",
-        use_container_width=True,
-        key="manual_matrix_editor",
-    )
+    edited_matrix = _data_editor(matrix_rows, **matrix_editor_kwargs)
     edited_assignments = _matrix_to_assignments(edited_matrix, nurses)
 
     st.subheader("手動調整後の充足チェック")
-    st.dataframe(_build_manual_check(edited_assignments, demands), use_container_width=True)
+    _dataframe(_build_manual_check(edited_assignments, demands), use_container_width=True)
 
     st.subheader("エクスポート")
     st.download_button(

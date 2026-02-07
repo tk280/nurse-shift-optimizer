@@ -11,19 +11,17 @@ OR-Tools を使って看護師シフトを最適化するプロジェクトで�
 
 ## セットアップ
 ```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+poetry install
 ```
 
 ## Web UI の起動
 ```bash
-streamlit run scripts/run_shift_web_ui.py
+poetry run streamlit run scripts/run_shift_web_ui.py
 ```
 
 ## テスト実行
 ```bash
-pytest -q
+poetry run pytest -q
 ```
 
 ## 構成
