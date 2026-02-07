@@ -100,6 +100,16 @@ def _dataframe(data: Any, *, use_container_width: bool = True) -> None:
         st.dataframe(data)
 
 
+def _button(label: str, **kwargs: Any) -> bool:
+    try:
+        return bool(st.button(label, **kwargs))
+    except TypeError:
+        fallback = dict(kwargs)
+        fallback.pop("type", None)
+        fallback.pop("use_container_width", None)
+        return bool(st.button(label, **fallback))
+
+
 def _build_dates(start: date, days: int) -> List[str]:
     return [(start + timedelta(days=i)).isoformat() for i in range(days)]
 
@@ -555,11 +565,11 @@ def _inject_styles() -> None:
           --bg-main: #f7f3ed;
           --bg-card: #ffffff;
           --line: #e5ddd2;
-          --text-main: #1f2328;
-          --text-sub: #5f6771;
+          --text-main: #111111;
+          --text-sub: #3f4650;
           --accent: #2563eb;
           --accent-strong: #1d4ed8;
-          --accent-soft: #e8efff;
+          --accent-soft: #eef3ff;
           --day: #dff2ff;
           --day-text: #114a72;
           --evening: #fff1dd;
@@ -580,6 +590,17 @@ def _inject_styles() -> None:
             var(--bg-main);
           color: var(--text-main);
           line-height: 1.6;
+        }
+
+        section[data-testid="stMain"] {
+          color: var(--text-main);
+        }
+
+        section[data-testid="stMain"] p,
+        section[data-testid="stMain"] li,
+        section[data-testid="stMain"] label,
+        section[data-testid="stMain"] .stCaption {
+          color: var(--text-main) !important;
         }
 
         section[data-testid="stSidebar"] {
@@ -624,11 +645,12 @@ def _inject_styles() -> None:
           line-height: 1.2;
           letter-spacing: 0.01em;
           font-weight: 800;
+          color: #111111;
         }
 
         .hero p {
           margin: 0;
-          color: var(--text-sub);
+          color: #111111;
           font-size: 15px;
         }
 
@@ -665,7 +687,7 @@ def _inject_styles() -> None:
           padding: 12px 10px;
           border-bottom: 1px solid var(--line);
           font-size: 13px;
-          color: #2f3b4a;
+          color: #111111;
           font-weight: 600;
         }
 
@@ -678,13 +700,13 @@ def _inject_styles() -> None:
 
         .cell-date {
           font-weight: 700;
-          color: var(--accent);
+          color: #111111;
           background: #fbfbfb;
         }
 
         .weekday {
           font-size: 11px;
-          color: var(--text-sub);
+          color: #111111;
         }
 
         .pill {
@@ -728,15 +750,36 @@ def _inject_styles() -> None:
         }
 
         div[data-testid="stDateInput"] input,
-        div[data-testid="stNumberInput"] input {
-          background: #10151c !important;
+        div[data-testid="stNumberInput"] input,
+        div[data-testid="stTextInput"] input {
+          background: #fffdf8 !important;
+          color: var(--text-main) !important;
+          -webkit-text-fill-color: var(--text-main) !important;
+          border-color: var(--line) !important;
+        }
+
+        section[data-testid="stMain"] div[data-testid="stDateInput"] input,
+        section[data-testid="stMain"] div[data-testid="stNumberInput"] input {
+          background: #111111 !important;
           color: #ffffff !important;
           -webkit-text-fill-color: #ffffff !important;
-          border-color: #2d3a4d !important;
+          border-color: #2f2f2f !important;
+        }
+
+        section[data-testid="stMain"] div[data-testid="stDateInput"] label,
+        section[data-testid="stMain"] div[data-testid="stNumberInput"] label {
+          color: #111111 !important;
+          font-weight: 800 !important;
+          font-size: 16px !important;
         }
 
         div[data-testid="stDateInput"] svg,
         div[data-testid="stNumberInput"] svg {
+          fill: #3f4650 !important;
+        }
+
+        section[data-testid="stMain"] div[data-testid="stDateInput"] svg,
+        section[data-testid="stMain"] div[data-testid="stNumberInput"] svg {
           fill: #ffffff !important;
         }
 
@@ -760,29 +803,47 @@ def _inject_styles() -> None:
         .stButton > button:hover { filter: brightness(1.07); }
 
         .stDownloadButton > button {
-          background: linear-gradient(120deg, #2b3440, #1f2833) !important;
-          color: #ffffff !important;
-          border: 1px solid #2b3440 !important;
+          background: #f8fafc !important;
+          color: #111111 !important;
+          border: 1px solid #d2dae5 !important;
           border-radius: 12px !important;
           padding: 10px 16px !important;
           font-weight: 600 !important;
-          box-shadow: 0 8px 20px rgba(31, 40, 51, 0.20);
+          box-shadow: 0 8px 20px rgba(31, 40, 51, 0.10);
         }
 
         .stDownloadButton > button:hover {
-          filter: brightness(1.10);
+          filter: brightness(0.98);
+        }
+
+        div[data-testid="stDataFrame"] * {
+          color: #111111 !important;
         }
 
         div[data-testid="stExpander"] summary {
           background: #f8fafc !important;
-          color: #1f2937 !important;
+          color: #111111 !important;
           border: 1px solid #d8e1eb !important;
           border-radius: 12px !important;
           padding: 8px 12px !important;
+          font-size: 20px !important;
+          font-weight: 800 !important;
         }
 
         div[data-testid="stExpander"] summary * {
-          color: #1f2937 !important;
+          color: #111111 !important;
+        }
+
+        div[data-testid="stExpander"] .stCaption,
+        div[data-testid="stExpander"] .stMarkdown,
+        div[data-testid="stExpander"] .stMarkdown *,
+        div[data-testid="stExpander"] p,
+        div[data-testid="stExpander"] li,
+        div[data-testid="stExpander"] label,
+        div[data-testid="stExpander"] span,
+        div[data-testid="stExpander"] div {
+          color: #111111 !important;
+          font-size: 15px !important;
         }
 
         @keyframes rise-in {
@@ -1009,7 +1070,7 @@ def main() -> None:
 
     action_col1, action_col2 = st.columns([1, 2])
     with action_col1:
-        if st.button("テンプレートを再生成"):
+        if _button("テンプレートを再生成"):
             _reset_template(start_date, int(days))
             _rerun()
     with action_col2:
@@ -1073,7 +1134,7 @@ def main() -> None:
             "- 実行不能が出る場合は最大勤務回数または必要人数を調整"
         )
 
-    run_clicked = st.button("最適化を実行", type="primary", use_container_width=True)
+    run_clicked = _button("最適化を実行", type="primary", use_container_width=True)
 
     if not run_clicked:
         return
@@ -1190,7 +1251,7 @@ def main() -> None:
                     "generic_infeasible": "必要人数の厳密一致を OFF",
                 }
                 button_label = label_map.get(code, "推奨パラメータを適用")
-                if st.button(f"{idx}. {button_label}", key=f"apply_infeasible_fix_{idx}"):
+                if _button(f"{idx}. {button_label}", key=f"apply_infeasible_fix_{idx}"):
                     message = _apply_infeasible_recommendation(code, item, nurse_count)
                     st.session_state["auto_fix_message"] = message
                     _rerun()
