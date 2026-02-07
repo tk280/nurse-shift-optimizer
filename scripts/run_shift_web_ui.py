@@ -599,8 +599,23 @@ def _inject_styles() -> None:
         section[data-testid="stMain"] p,
         section[data-testid="stMain"] li,
         section[data-testid="stMain"] label,
-        section[data-testid="stMain"] .stCaption {
+        section[data-testid="stMain"] .stCaption,
+        section[data-testid="stMain"] span,
+        section[data-testid="stMain"] th,
+        section[data-testid="stMain"] td,
+        section[data-testid="stMain"] strong,
+        section[data-testid="stMain"] em,
+        section[data-testid="stMain"] code {
           color: var(--text-main) !important;
+        }
+
+        section[data-testid="stMain"] h1,
+        section[data-testid="stMain"] h2,
+        section[data-testid="stMain"] h3,
+        section[data-testid="stMain"] h4,
+        section[data-testid="stMain"] h5,
+        section[data-testid="stMain"] h6 {
+          color: #111111 !important;
         }
 
         section[data-testid="stSidebar"] {
@@ -619,13 +634,13 @@ def _inject_styles() -> None:
         div[data-testid="stMetric"] label,
         div[data-testid="stMetric"] [data-testid="stMetricLabel"],
         div[data-testid="stMetric"] [data-testid="stMetricLabel"] * {
-          color: #1f2937 !important;
+          color: #111111 !important;
           font-weight: 700 !important;
         }
 
         div[data-testid="stMetric"] [data-testid="stMetricValue"],
         div[data-testid="stMetric"] [data-testid="stMetricValue"] * {
-          color: #111827 !important;
+          color: #111111 !important;
           font-weight: 800 !important;
         }
 
@@ -719,10 +734,10 @@ def _inject_styles() -> None:
           letter-spacing: 0.01em;
         }
 
-        .shift-day { background: var(--day); color: var(--day-text); }
-        .shift-evening { background: var(--evening); color: var(--evening-text); }
-        .shift-night { background: var(--night); color: var(--night-text); }
-        .shift-empty { background: var(--empty); color: var(--empty-text); }
+        .shift-day { background: var(--day); color: #111111; }
+        .shift-evening { background: var(--evening); color: #111111; }
+        .shift-night { background: var(--night); color: #111111; }
+        .shift-empty { background: var(--empty); color: #111111; }
 
         .legend-wrap {
           display: flex;
@@ -792,7 +807,7 @@ def _inject_styles() -> None:
 
         .stButton > button {
           background: linear-gradient(120deg, var(--accent), var(--accent-strong));
-          color: white;
+          color: #ffffff !important;
           border: 0;
           border-radius: 12px;
           padding: 10px 16px;
@@ -800,27 +815,39 @@ def _inject_styles() -> None:
           box-shadow: 0 8px 20px rgba(37, 99, 235, 0.22);
         }
 
-        .stButton > button:hover { filter: brightness(1.07); }
+        .stButton > button:hover {
+          filter: brightness(1.07);
+          color: #ffffff !important;
+          font-weight: 800 !important;
+        }
 
         .stDownloadButton > button {
-          background: #f8fafc !important;
-          color: #111111 !important;
-          border: 1px solid #d2dae5 !important;
+          background: linear-gradient(120deg, var(--accent), var(--accent-strong)) !important;
+          color: #ffffff !important;
+          border: 0 !important;
           border-radius: 12px !important;
           padding: 10px 16px !important;
           font-weight: 600 !important;
-          box-shadow: 0 8px 20px rgba(31, 40, 51, 0.10);
+          box-shadow: 0 8px 20px rgba(37, 99, 235, 0.22) !important;
         }
 
         .stDownloadButton > button:hover {
-          filter: brightness(0.98);
+          filter: brightness(1.07);
+          color: #ffffff !important;
+          font-weight: 800 !important;
         }
 
         div[data-testid="stDataFrame"] * {
           color: #111111 !important;
         }
 
-        div[data-testid="stExpander"] summary {
+        div[data-testid="stAlert"] *,
+        div[data-testid="stStatusWidget"] *,
+        div[data-testid="stNotification"] * {
+          color: #111111 !important;
+        }
+
+        section[data-testid="stMain"] div[data-testid="stExpander"] summary {
           background: #f8fafc !important;
           color: #111111 !important;
           border: 1px solid #d8e1eb !important;
@@ -830,20 +857,33 @@ def _inject_styles() -> None:
           font-weight: 800 !important;
         }
 
-        div[data-testid="stExpander"] summary * {
+        section[data-testid="stMain"] div[data-testid="stExpander"] summary * {
           color: #111111 !important;
         }
 
-        div[data-testid="stExpander"] .stCaption,
-        div[data-testid="stExpander"] .stMarkdown,
-        div[data-testid="stExpander"] .stMarkdown *,
-        div[data-testid="stExpander"] p,
-        div[data-testid="stExpander"] li,
-        div[data-testid="stExpander"] label,
-        div[data-testid="stExpander"] span,
-        div[data-testid="stExpander"] div {
+        section[data-testid="stMain"] div[data-testid="stExpander"] .stCaption,
+        section[data-testid="stMain"] div[data-testid="stExpander"] .stMarkdown,
+        section[data-testid="stMain"] div[data-testid="stExpander"] .stMarkdown *,
+        section[data-testid="stMain"] div[data-testid="stExpander"] p,
+        section[data-testid="stMain"] div[data-testid="stExpander"] li,
+        section[data-testid="stMain"] div[data-testid="stExpander"] label,
+        section[data-testid="stMain"] div[data-testid="stExpander"] span,
+        section[data-testid="stMain"] div[data-testid="stExpander"] div {
           color: #111111 !important;
           font-size: 15px !important;
+        }
+
+        section[data-testid="stSidebar"] div[data-testid="stExpander"] summary,
+        section[data-testid="stSidebar"] div[data-testid="stExpander"] summary *,
+        section[data-testid="stSidebar"] div[data-testid="stExpander"] .stCaption,
+        section[data-testid="stSidebar"] div[data-testid="stExpander"] .stMarkdown,
+        section[data-testid="stSidebar"] div[data-testid="stExpander"] .stMarkdown *,
+        section[data-testid="stSidebar"] div[data-testid="stExpander"] p,
+        section[data-testid="stSidebar"] div[data-testid="stExpander"] li,
+        section[data-testid="stSidebar"] div[data-testid="stExpander"] label,
+        section[data-testid="stSidebar"] div[data-testid="stExpander"] span,
+        section[data-testid="stSidebar"] div[data-testid="stExpander"] div {
+          color: #f3f6fb !important;
         }
 
         @keyframes rise-in {
