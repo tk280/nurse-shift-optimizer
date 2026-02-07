@@ -20,14 +20,8 @@ from .schemas import (
     TspNode,
 )
 
-from .constraints.hard.all_hard import add_one_shift_per_nurse_per_day
-add_one_shift_per_nurse_per_day(
-    solver=solver,
-    assignment_vars=assignment_vars,
-    nurses=nurses,
-    dates=dates,
-    shift_types=shift_types,
-)
+from .constraints.hard.all_hard import add_hard_constraints
+from .model.base_model import Vars
 
 
 def solve_problem(problem: ProblemDefinition, policy: Policy) -> Dict[str, Any]:
@@ -396,97 +390,15 @@ def _solve_nurse_shift(problem: ProblemDefinition, policy: Policy) -> Dict[str, 
         shift_types=shift_types,
     )
 
-    # One shift per nurse per day
-    for nurse in nurses:
-        for day in dates:
-            solver.Add(
-                sum(
-                    assignment_vars[(nurse["id"], day.isoformat(), shift_type)]
-                    for shift_type in shift_types
-                )
-                <= 1
-            )
+    # Route hard constraints through the refactor entrypoint
+    vars_ = Vars(assignment_vars=assignment_vars)
 
-    # Employment / leave / suspension / ward / support constraints.
-    for nurse in nurses:
-        for day in dates:
-            day_text = day.isoformat()
-            is_suspended_day = (
-                bool(nurse.get("suspended", False))
-                or day_text in nurse.get("suspended_dates", set())
-            )
-            is_leave_day = day_text in nurse.get("approved_leave_dates", set())
-            if is_suspended_day or is_leave_day:
-                for shift_type in shift_types:
-                    solver.Add(assignment_vars[(nurse["id"], day_text, shift_type)] == 0)
-                continue
-            for shift_type in shift_types:
-                demand_row = next(
-                    (
-                        demand
-                        for demand in demands
-                        if demand["date"] == day_text and demand["shift_type"] == shift_type
-                    ),
-                    None,
-                )
-                if demand_row is None:
-                    continue
-                if nurse.get("allowed_shift_types") and shift_type not in nurse.get(
-                    "allowed_shift_types", set()
-                ):
-                    solver.Add(assignment_vars[(nurse["id"], day_text, shift_type)] == 0)
-                if demand_row.get("ward") and nurse.get("ward"):
-                    if demand_row["ward"] != nurse["ward"]:
-                        solver.Add(assignment_vars[(nurse["id"], day_text, shift_type)] == 0)
-                if demand_row.get("is_support", False) and not nurse.get(
-                    "support_staff", False
-                ):
-                    solver.Add(assignment_vars[(nurse["id"], day_text, shift_type)] == 0)
-
-    # Demand constraints
-    enforce_exact_demand = bool(rules.get("enforce_exact_demand", True))
-    for demand in demands:
-        day = demand["date"]
-        shift_type = demand["shift_type"]
-        required_count = demand["required_count"]
-        demand_expr = sum(
-            assignment_vars[(nurse["id"], day, shift_type)]
-            for nurse in nurses
-        )
-        if enforce_exact_demand:
-            solver.Add(demand_expr == required_count)
-        else:
-            solver.Add(demand_expr >= required_count)
-
-        # Required skill hard constraint.
-        if bool(rules.get("enforce_required_skills_hard", True)):
-            req_skills = demand.get("required_skills", set())
-            if req_skills:
-                for nurse in nurses:
-                    if not req_skills.issubset(nurse["skills"]):
-                        solver.Add(assignment_vars[(nurse["id"], day, shift_type)] == 0)
-
-        # Leadership required: at least one experienced nurse in shift.
-        if demand.get("requires_experienced", False):
-            solver.Add(
-                sum(
-                    assignment_vars[(nurse["id"], day, shift_type)]
-                    for nurse in nurses
-                    if nurse.get("experienced", False)
-                )
-                >= 1
-            )
-
-        # If multiple staff in shift, not all novices.
-        if required_count >= 2:
-            solver.Add(
-                sum(
-                    assignment_vars[(nurse["id"], day, shift_type)]
-                    for nurse in nurses
-                    if not nurse.get("novice", False)
-                )
-                >= 1
-            )
+    add_hard_constraints(
+        model=solver,
+        vars_=vars_,
+        data=input_data,
+        policy=policy,
+    )
 
     # Max shifts per nurse (applied per calendar week: Monday-Sunday)
     for nurse in nurses:
@@ -515,84 +427,6 @@ def _solve_nurse_shift(problem: ProblemDefinition, policy: Policy) -> Dict[str, 
                     for shift_type in shift_types
                 )
                 <= max(0, len(week_dates) - min_rest_days_per_week)
-            )
-
-    # Rest after night
-    rest_days = int(rules.get("rest_after_night_days", 0))
-    night_shift_type = rules.get("night_shift_type")
-    if rest_days > 0 and night_shift_type in shift_types:
-        for nurse in nurses:
-            for idx, day in enumerate(dates):
-                next_days = dates[idx + 1 : idx + 1 + rest_days]
-                if not next_days:
-                    continue
-                night_var = assignment_vars[(nurse["id"], day.isoformat(), night_shift_type)]
-                for next_day in next_days:
-                    solver.Add(
-                        night_var
-                        + sum(
-                            assignment_vars[(nurse["id"], next_day.isoformat(), shift)]
-                            for shift in shift_types
-                        )
-                        <= 1
-                    )
-
-    # Night -> forbidden next-day transitions (e.g., night -> day).
-    forbidden_after_night = set(rules.get("forbidden_after_night_shift_types", ["day"]))
-    if night_shift_type in shift_types:
-        for nurse in nurses:
-            for idx, day in enumerate(dates[:-1]):
-                night_var = assignment_vars[(nurse["id"], day.isoformat(), night_shift_type)]
-                next_day = dates[idx + 1].isoformat()
-                for shift_type in forbidden_after_night:
-                    if shift_type in shift_types:
-                        solver.Add(
-                            night_var
-                            + assignment_vars[(nurse["id"], next_day, shift_type)]
-                            <= 1
-                        )
-
-    # Max consecutive working days.
-    max_consecutive_days = rules.get("max_consecutive_days")
-    if max_consecutive_days is not None:
-        max_consecutive_days = int(max_consecutive_days)
-        if max_consecutive_days >= 0 and max_consecutive_days < len(dates):
-            window = max_consecutive_days + 1
-            for nurse in nurses:
-                for start_idx in range(0, len(dates) - window + 1):
-                    segment = dates[start_idx : start_idx + window]
-                    solver.Add(
-                        sum(
-                            assignment_vars[(nurse["id"], day.isoformat(), shift_type)]
-                            for day in segment
-                            for shift_type in shift_types
-                        )
-                        <= max_consecutive_days
-                    )
-
-    # Hour limits and monthly night limits.
-    for nurse in nurses:
-        max_monthly_hours = nurse.get("max_monthly_hours", rules.get("max_monthly_hours"))
-        if max_monthly_hours is not None:
-            solver.Add(
-                sum(
-                    float(shift_type_meta[shift_type]["duration_hours"])
-                    * assignment_vars[(nurse["id"], day.isoformat(), shift_type)]
-                    for day in dates
-                    for shift_type in shift_types
-                )
-                <= float(max_monthly_hours)
-            )
-        max_monthly_night_shifts = nurse.get(
-            "max_monthly_night_shifts", rules.get("max_monthly_night_shifts")
-        )
-        if max_monthly_night_shifts is not None and night_shift_type in shift_types:
-            solver.Add(
-                sum(
-                    assignment_vars[(nurse["id"], day.isoformat(), night_shift_type)]
-                    for day in dates
-                )
-                <= int(max_monthly_night_shifts)
             )
 
     # Night shift must include at least one registered nurse.
