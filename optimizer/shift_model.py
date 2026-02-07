@@ -22,7 +22,7 @@ from .schemas import (
 
 from .constraints.hard.all_hard import add_hard_constraints
 from .model.base_model import Vars
-
+from .objectives.objective import build_objective_terms
 
 def solve_problem(problem: ProblemDefinition, policy: Policy) -> Dict[str, Any]:
     problem_type = problem.problem_type.lower()
@@ -429,213 +429,17 @@ def _solve_nurse_shift(problem: ProblemDefinition, policy: Policy) -> Dict[str, 
                 <= max(0, len(week_dates) - min_rest_days_per_week)
             )
 
-    # Objective: soft constraints
-    objective_terms = []
-
-    # Day-off penalty
-    day_off_penalty = float(weights["day_off_penalty"])
-    for nurse in nurses:
-        requested_days_off = set(nurse.get("requested_days_off", []))
-        for day in requested_days_off:
-            if day not in input_data["date_index"]:
-                continue
-            for shift_type in shift_types:
-                var = assignment_vars[(nurse["id"], day, shift_type)]
-                objective_terms.append(day_off_penalty * var)
-
-    # Approved shift preferences.
-    preference_penalty = float(weights.get("preference_penalty", 2.0))
-    if preference_penalty > 0:
-        for nurse in nurses:
-            preferences = nurse.get("shift_preferences", {})
-            for day_text, preferred in preferences.items():
-                preferred_set = set(preferred)
-                if not preferred_set:
-                    continue
-                for shift_type in shift_types:
-                    if shift_type not in preferred_set:
-                        objective_terms.append(
-                            preference_penalty
-                            * assignment_vars[(nurse["id"], day_text, shift_type)]
-                        )
-
-    # Skill priority penalty
-    skill_priority_penalty = float(weights["skill_priority_penalty"])
-    if skill_priority_penalty > 0:
-        for demand in demands:
-            if not demand["required_skills"]:
-                continue
-            for nurse in nurses:
-                if not demand["required_skills"].issubset(nurse["skills"]):
-                    var = assignment_vars[(nurse["id"], demand["date"], demand["shift_type"])]
-                    objective_terms.append(skill_priority_penalty * var)
-
-    # Fairness penalty
-    fairness_penalty = float(weights["fairness_penalty"])
-    if fairness_penalty > 0:
-        total_demand = sum(demand["required_count"] for demand in demands)
-        avg_shifts = total_demand / max(len(nurses), 1)
-        for nurse in nurses:
-            total_shifts_var = solver.NumVar(0, solver.infinity(), f"total_{nurse['id']}")
-            solver.Add(
-                total_shifts_var
-                == sum(
-                    assignment_vars[(nurse["id"], day.isoformat(), shift_type)]
-                    for day in dates
-                    for shift_type in shift_types
-                )
-            )
-            dev_var = solver.NumVar(0, solver.infinity(), f"dev_{nurse['id']}")
-            solver.Add(dev_var >= total_shifts_var - avg_shifts)
-            solver.Add(dev_var >= avg_shifts - total_shifts_var)
-            objective_terms.append(fairness_penalty * dev_var)
-
-    # Consecutive night shift penalty.
-    consecutive_night_penalty = float(weights.get("consecutive_night_penalty", 3.0))
-    if consecutive_night_penalty > 0 and night_shift_type in shift_types:
-        for nurse in nurses:
-            for idx in range(len(dates) - 1):
-                d1 = dates[idx].isoformat()
-                d2 = dates[idx + 1].isoformat()
-                pair_var = solver.NumVar(0, 1, f"pair_night_{nurse['id']}_{d1}")
-                solver.Add(
-                    pair_var
-                    >= assignment_vars[(nurse["id"], d1, night_shift_type)]
-                    + assignment_vars[(nurse["id"], d2, night_shift_type)]
-                    - 1
-                )
-                objective_terms.append(consecutive_night_penalty * pair_var)
-
-    # Night fairness / weekend fairness / holiday fairness.
-    night_fairness_penalty = float(weights.get("night_fairness_penalty", 1.0))
-    if night_fairness_penalty > 0 and night_shift_type in shift_types:
-        avg_nights = sum(
-            int(demand["required_count"])
-            for demand in demands
-            if demand["shift_type"] == night_shift_type
-        ) / max(len(nurses), 1)
-        for nurse in nurses:
-            nurse_nights = solver.NumVar(0, solver.infinity(), f"nights_{nurse['id']}")
-            solver.Add(
-                nurse_nights
-                == sum(
-                    assignment_vars[(nurse["id"], day.isoformat(), night_shift_type)]
-                    for day in dates
-                )
-            )
-            dev = solver.NumVar(0, solver.infinity(), f"night_dev_{nurse['id']}")
-            solver.Add(dev >= nurse_nights - avg_nights)
-            solver.Add(dev >= avg_nights - nurse_nights)
-            objective_terms.append(night_fairness_penalty * dev)
-
-    weekend_fairness_penalty = float(weights.get("weekend_fairness_penalty", 1.0))
-    weekend_days = [day for day in dates if day.weekday() >= 5]
-    if weekend_fairness_penalty > 0 and weekend_days:
-        total_weekend_required = sum(
-            int(demand["required_count"])
-            for demand in demands
-            if datetime.strptime(demand["date"], "%Y-%m-%d").weekday() >= 5
-        )
-        avg_weekend = total_weekend_required / max(len(nurses), 1)
-        for nurse in nurses:
-            weekend_work = solver.NumVar(0, solver.infinity(), f"weekend_{nurse['id']}")
-            solver.Add(
-                weekend_work
-                == sum(
-                    assignment_vars[(nurse["id"], day.isoformat(), shift_type)]
-                    for day in weekend_days
-                    for shift_type in shift_types
-                )
-            )
-            dev = solver.NumVar(0, solver.infinity(), f"weekend_dev_{nurse['id']}")
-            solver.Add(dev >= weekend_work - avg_weekend)
-            solver.Add(dev >= avg_weekend - weekend_work)
-            objective_terms.append(weekend_fairness_penalty * dev)
-
-    holiday_fairness_penalty = float(weights.get("holiday_fairness_penalty", 1.0))
-    holiday_dates = sorted({demand["date"] for demand in demands if demand.get("holiday", False)})
-    if holiday_fairness_penalty > 0 and holiday_dates:
-        total_holiday_required = sum(
-            int(demand["required_count"]) for demand in demands if demand.get("holiday", False)
-        )
-        avg_holiday = total_holiday_required / max(len(nurses), 1)
-        for nurse in nurses:
-            holiday_work = solver.NumVar(0, solver.infinity(), f"holiday_{nurse['id']}")
-            solver.Add(
-                holiday_work
-                == sum(
-                    assignment_vars[(nurse["id"], day_text, shift_type)]
-                    for day_text in holiday_dates
-                    for shift_type in shift_types
-                )
-            )
-            dev = solver.NumVar(0, solver.infinity(), f"holiday_dev_{nurse['id']}")
-            solver.Add(dev >= holiday_work - avg_holiday)
-            solver.Add(dev >= avg_holiday - holiday_work)
-            objective_terms.append(holiday_fairness_penalty * dev)
-
-    # External nurse usage penalty.
-    external_usage_penalty = float(weights.get("external_usage_penalty", 2.0))
-    if external_usage_penalty > 0:
-        for nurse in nurses:
-            if not nurse.get("external", False):
-                continue
-            for day in dates:
-                for shift_type in shift_types:
-                    objective_terms.append(
-                        external_usage_penalty
-                        * assignment_vars[(nurse["id"], day.isoformat(), shift_type)]
-                    )
-
-    # Novice should be with experienced (soft).
-    novice_with_experienced_penalty = float(
-        weights.get("novice_with_experienced_penalty", 2.0)
+    objective_terms = build_objective_terms(
+        solver=solver,
+        assignment_vars=assignment_vars,
+        nurses=nurses,
+        dates=dates,
+        shift_types=shift_types,
+        demands=demands,
+        rules=rules,
+        weights=weights,
+        shift_type_meta=shift_type_meta,
     )
-    if novice_with_experienced_penalty > 0:
-        for demand in demands:
-            day = demand["date"]
-            shift_type = demand["shift_type"]
-            experienced_sum = sum(
-                assignment_vars[(nurse["id"], day, shift_type)]
-                for nurse in nurses
-                if nurse.get("experienced", False)
-            )
-            for nurse in nurses:
-                if not nurse.get("novice", False):
-                    continue
-                lack_var = solver.NumVar(
-                    0, 1, f"novice_without_exp_{nurse['id']}_{day}_{shift_type}"
-                )
-                solver.Add(
-                    lack_var
-                    >= assignment_vars[(nurse["id"], day, shift_type)] - experienced_sum
-                )
-                objective_terms.append(novice_with_experienced_penalty * lack_var)
-
-    # Abrupt transition penalties.
-    abrupt_transition_penalty = float(weights.get("abrupt_transition_penalty", 1.0))
-    abrupt_pairs = rules.get(
-        "abrupt_transition_pairs",
-        [["day", "night"], ["night", "day"], ["evening", "day"]],
-    )
-    if abrupt_transition_penalty > 0:
-        for nurse in nurses:
-            for idx in range(len(dates) - 1):
-                d1 = dates[idx].isoformat()
-                d2 = dates[idx + 1].isoformat()
-                for first_shift, second_shift in abrupt_pairs:
-                    if first_shift not in shift_types or second_shift not in shift_types:
-                        continue
-                    pair_var = solver.NumVar(
-                        0, 1, f"abrupt_{nurse['id']}_{d1}_{first_shift}_{second_shift}"
-                    )
-                    solver.Add(
-                        pair_var
-                        >= assignment_vars[(nurse["id"], d1, first_shift)]
-                        + assignment_vars[(nurse["id"], d2, second_shift)]
-                        - 1
-                    )
-                    objective_terms.append(abrupt_transition_penalty * pair_var)
 
     if objective_terms:
         solver.Minimize(sum(objective_terms))
